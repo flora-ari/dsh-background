@@ -679,6 +679,11 @@ ${issues.join("\n")}`);
     function reconcileTransparentSurfaces() {
       const desired = /* @__PURE__ */ new Map();
       const transparentBackground = { "background-color": "transparent" };
+      function addSidebarControls(host) {
+        for (const button of host.querySelectorAll('button[class*="_newSession"]')) {
+          if (button instanceof window2.HTMLElement && !owned(button)) desired.set(button, transparentBackground);
+        }
+      }
       function addWorkspaceSurfaces(host) {
         for (const surface of host.querySelectorAll('[data-slot="sidebar.workspaces"] > *')) {
           if (!(surface instanceof window2.HTMLElement) || owned(surface)) continue;
@@ -704,11 +709,17 @@ ${issues.join("\n")}`);
             }
           }
           addWorkspaceSurfaces(mount.host);
+          for (const host of mount.host.querySelectorAll('[data-slot="sidebar"] > *')) {
+            if (host instanceof window2.HTMLElement) addSidebarControls(host);
+          }
         }
       }
       const sidebar = regions.find((region) => region.name === "sidebar");
       if (enabled(sidebar)) {
-        for (const mount of sidebar.mounts.values()) addWorkspaceSurfaces(mount.host);
+        for (const mount of sidebar.mounts.values()) {
+          addWorkspaceSurfaces(mount.host);
+          addSidebarControls(mount.host);
+        }
       }
       const chat = regions.find((region) => region.name === "chat");
       for (const trajectory of document2.querySelectorAll('[data-slot="conversation.view"] > [data-conversation-composer-overlay]:has([data-trajectory-scroll])')) {
@@ -734,6 +745,9 @@ ${issues.join("\n")}`);
       for (const region of rightRegions.values()) {
         for (const mount of region.mounts.values()) {
           if (mount.host.hasAttribute("data-dockkit-content")) desired.set(mount.host, transparentBackground);
+          for (const tab of mount.host.querySelectorAll("[data-dockkit-strip] [data-dockkit-tab]")) {
+            if (tab instanceof window2.HTMLElement && !owned(tab)) desired.set(tab, transparentBackground);
+          }
           for (const surface of mount.host.querySelectorAll('[data-slot="sidebar.right.pane.tab"] > *')) {
             if (surface instanceof window2.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
           }

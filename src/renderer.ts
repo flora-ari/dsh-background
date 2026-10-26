@@ -294,6 +294,13 @@ export function mountBackgrounds(
   function reconcileTransparentSurfaces(): void {
     const desired = new Map<HTMLElement, Record<string, string>>();
     const transparentBackground = { "background-color": "transparent" };
+    function addSidebarControls(host: HTMLElement): void {
+      // SidebarRoot has no data hook for New Session. Match its CSS-module
+      // local name on the button, independent of locale and generated hash.
+      for (const button of host.querySelectorAll('button[class*="_newSession"]')) {
+        if (button instanceof window!.HTMLElement && !owned(button)) desired.set(button, transparentBackground);
+      }
+    }
     function addWorkspaceSurfaces(host: HTMLElement): void {
       for (const surface of host.querySelectorAll('[data-slot="sidebar.workspaces"] > *')) {
         if (!(surface instanceof window!.HTMLElement) || owned(surface)) continue;
@@ -326,11 +333,17 @@ export function mountBackgrounds(
           }
         }
         addWorkspaceSurfaces(mount.host);
+        for (const host of mount.host.querySelectorAll('[data-slot="sidebar"] > *')) {
+          if (host instanceof window!.HTMLElement) addSidebarControls(host);
+        }
       }
     }
     const sidebar = regions.find((region) => region.name === "sidebar")!;
     if (enabled(sidebar)) {
-      for (const mount of sidebar.mounts.values()) addWorkspaceSurfaces(mount.host);
+      for (const mount of sidebar.mounts.values()) {
+        addWorkspaceSurfaces(mount.host);
+        addSidebarControls(mount.host);
+      }
     }
     const chat = regions.find((region) => region.name === "chat")!;
     for (const trajectory of document.querySelectorAll('[data-slot="conversation.view"] > [data-conversation-composer-overlay]:has([data-trajectory-scroll])')) {
@@ -360,6 +373,11 @@ export function mountBackgrounds(
       for (const mount of region.mounts.values()) {
         // The visible dock pane is itself the bg-base data-dockkit-content shell.
         if (mount.host.hasAttribute("data-dockkit-content")) desired.set(mount.host, transparentBackground);
+        // Dockkit paints selected/hovered chips once a pane has multiple tabs.
+        // Keep their labels, close buttons and selection semantics over the image.
+        for (const tab of mount.host.querySelectorAll('[data-dockkit-strip] [data-dockkit-tab]')) {
+          if (tab instanceof window!.HTMLElement && !owned(tab)) desired.set(tab, transparentBackground);
+        }
         // Registered tab roots may paint a whole-pane fill; leave their controls intact.
         for (const surface of mount.host.querySelectorAll('[data-slot="sidebar.right.pane.tab"] > *')) {
           if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
