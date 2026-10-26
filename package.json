@@ -1,6 +1,6 @@
 {
   "name": "dsh-background-ari",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Independent background images and carousels for DeepSeek Harness Web and Desktop.",
   "type": "module",
   "license": "MIT",
