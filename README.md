@@ -15,7 +15,7 @@
 可从 [GitHub Releases](https://github.com/flora-ari/dsh-background/releases) 下载 `.tgz` 安装包，也可以将下面的下载地址填入 Desktop 的插件安装页面，或通过 Web CLI 安装：
 
 ```sh
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.1.9/dsh-background-ari-0.1.9.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.0/dsh-background-ari-0.2.0.tgz
 ```
 
 ### Web
@@ -50,7 +50,7 @@ dsh plugin --profile desktop add github:flora-ari/dsh-background#main
 
 ```sh
 dsh plugin --profile web remove dsh-background
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.1.9/dsh-background-ari-0.1.9.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.0/dsh-background-ari-0.2.0.tgz
 ```
 
 开发过程中如已安装临时包 `flora-ari-dsh-background`，也要在对应 profile 移除它；Web 端可执行 `dsh plugin --profile web remove flora-ari-dsh-background`，然后安装上面的新版安装包。
@@ -70,10 +70,10 @@ npm run build
 npm pack
 ```
 
-完成上述构建后，`npm pack` 输出 `dsh-background-ari-0.1.9.tgz`。也可以用 `npm run package` 一次完成类型检查、构建与打包。在 Plugins 页面安装这个文件，或用 Web CLI 传入它的绝对路径（将下方占位路径替换为安装包的绝对路径）：
+完成上述构建后，`npm pack` 输出 `dsh-background-ari-0.2.0.tgz`。也可以用 `npm run package` 一次完成类型检查、构建与打包。在 Plugins 页面安装这个文件，或用 Web CLI 传入它的绝对路径（将下方占位路径替换为安装包的绝对路径）：
 
 ```sh
-dsh plugin --profile web add "absolute\path\to\dsh-background-ari-0.1.9.tgz"
+dsh plugin --profile web add "absolute\path\to\dsh-background-ari-0.2.0.tgz"
 ```
 
 ## 设置背景
@@ -194,7 +194,7 @@ JSON 是本插件设置页面使用的配置格式；背景设置保存在客户
 
 ## 开发约定
 
-当前迭代在 `v.0.2.0` 分支开发；每次完成开发和验证后可推送该分支，待用户检查确认后再合并到 `main`。提交修复时重新构建并提交 `dist/`，让 GitHub 安装使用与源码对应的产物。
+每次迭代使用 `v.0.2.0` 这样的开发分支；每次完成开发和验证后可推送该分支，待用户检查确认后再合并到 `main`。提交修复时重新构建并提交 `dist/`，让 GitHub 安装使用与源码对应的产物。
 
 测试代码统一放在本地 `tests/`。按本项目约定，`tests/`、`.agents/`、`.claude/` 以及其他运行时临时产物不上传到仓库，也不进入安装包；本地开发环境保留测试时，可执行 `npm test` 和 `npm run test:browser`。安装包通过 `files` 白名单仅包含构建产物、插件配置、图标、示例和文档。
 
@@ -221,6 +221,8 @@ JSON 是本插件设置页面使用的配置格式；背景设置保存在客户
 `v0.1.8` 让左侧图片以主题底色承接透明度，避免与全局图片重叠。类型检查、20 项相关单元测试及 2 个 Chromium 用例通过；像素验证覆盖深浅主题、全局换图、透明 PNG、图片未铺满区域、透明度 0 与 1、左侧顶部栏连续性，以及关闭或清空左侧图片后的全局背景恢复。
 
 `v0.1.9` 将主题底色隔离扩展到右侧边栏及 Windows 右上顶部栏，左右两侧在低不透明度、透明 PNG 和缩放留白处均不透出全局图片。类型检查、20 项相关单元测试及 2 个 Chromium 用例通过；22 个截图场景覆盖深浅主题、全局换图、两侧顶部栏连续性、新建面板、关闭重开、主题切换和关闭背景后的恢复，原有分栏尺寸与操作保持可用。
+
+`v0.2.0` 修复部分子组件背景显示异常，让新会话按钮、右侧边栏标签、会话消息、文件卡片和行内代码透出所在区域的背景图片。
 
 Windows 原生窗口按钮背景色尚无实机像素验证。Harness 的插件 API 尚未稳定，之后的版本可能需要适配。
 
