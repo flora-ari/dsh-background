@@ -314,7 +314,7 @@ export function mountBackgrounds(
       for (const mount of fullscreen.mounts.values()) {
         desired.set(mount.host, transparentBackground);
         // These are the opaque structural surfaces in Harness Web and Desktop.
-        // Keep controls, menus, message cards, and other descendants untouched.
+        // Message surfaces are handled separately below; keep controls and menus intact.
         for (const surface of mount.host.querySelectorAll('[data-slot="sidebar"] > *, [data-slot="main.conversation"] > *')) {
           if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
         }
@@ -380,6 +380,15 @@ export function mountBackgrounds(
         }
         // Registered tab roots may paint a whole-pane fill; leave their controls intact.
         for (const surface of mount.host.querySelectorAll('[data-slot="sidebar.right.pane.tab"] > *')) {
+          if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
+        }
+      }
+    }
+    // Clear message surfaces only where a background is actually mounted.
+    // Text, syntax colors, images, nested controls and sticky headers keep their styles.
+    for (const region of [fullscreen, chat, ...rightRegions.values()]) {
+      for (const mount of region.mounts.values()) {
+        for (const surface of mount.host.querySelectorAll('[class*="_userStack"] > [class*="_bubble"], [data-chat-node-key], [data-context-injection-body], [data-system-prompt-body], [data-variant="others"] pre[class*="_body"], [data-message-attachments] > [class*="_fileCard"]')) {
           if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
         }
       }

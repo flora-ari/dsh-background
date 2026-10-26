@@ -753,6 +753,13 @@ ${issues.join("\n")}`);
           }
         }
       }
+      for (const region of [fullscreen, chat, ...rightRegions.values()]) {
+        for (const mount of region.mounts.values()) {
+          for (const surface of mount.host.querySelectorAll('[class*="_userStack"] > [class*="_bubble"], [data-chat-node-key], [data-context-injection-body], [data-system-prompt-body], [data-variant="others"] pre[class*="_body"], [data-message-attachments] > [class*="_fileCard"]')) {
+            if (surface instanceof window2.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
+          }
+        }
+      }
       if ([...regions, ...rightRegions.values()].some((region) => enabled(region) && region.mounts.size > 0)) {
         let settingsOpen = false;
         for (const panel of document2.querySelectorAll('[data-shortcut-modal="settings"]')) {
