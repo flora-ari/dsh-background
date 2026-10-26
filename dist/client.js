@@ -450,6 +450,178 @@ ${issues.join("\n")}`);
     };
   }
 
+  // src/composer-background.ts
+  function createComposerBackgrounds(document2, owner) {
+    const window2 = document2.defaultView;
+    const images = /* @__PURE__ */ new Map();
+    const observed = /* @__PURE__ */ new Set();
+    const resize = typeof window2.ResizeObserver === "function" ? new window2.ResizeObserver(queue) : void 0;
+    let mounts = [];
+    let disposed = false;
+    let queued = false;
+    function ownedDiv(marker) {
+      const node = document2.createElement("div");
+      node.setAttribute(marker, "");
+      node.setAttribute("data-dsh-background-owner", owner);
+      return node;
+    }
+    function remove(surface) {
+      const image = images.get(surface);
+      if (!image) return;
+      image.clip.remove();
+      for (const { property, value, priority } of image.saved) {
+        if (value === "") surface.style.removeProperty(property);
+        else surface.style.setProperty(property, value, priority);
+      }
+      if (image.attribute === null) surface.removeAttribute("data-dsh-composer-surface");
+      else surface.setAttribute("data-dsh-composer-surface", image.attribute);
+      images.delete(surface);
+    }
+    function add(surface) {
+      const styles = {
+        "background-color": "transparent",
+        "background-image": "none",
+        "backdrop-filter": "none",
+        isolation: "isolate"
+      };
+      if (surface.hasAttribute("data-trigger-menu")) {
+        styles["--dsw-menu-surface-fill"] = "transparent";
+        styles["--dsw-menu-backdrop-filter"] = "none";
+        styles["--dsw-specific-menu"] = "transparent";
+      }
+      if (["static", ""].includes(window2.getComputedStyle(surface).position)) styles.position = "relative";
+      const saved = Object.keys(styles).map((property) => ({
+        property,
+        value: surface.style.getPropertyValue(property),
+        priority: surface.style.getPropertyPriority(property)
+      }));
+      for (const [property, value] of Object.entries(styles)) surface.style.setProperty(property, value, "important");
+      const clip = ownedDiv("data-dsh-composer-background");
+      clip.setAttribute("aria-hidden", "true");
+      Object.assign(clip.style, {
+        position: "absolute",
+        inset: "0px",
+        overflow: "hidden",
+        borderRadius: "inherit",
+        zIndex: "-1",
+        pointerEvents: "none",
+        userSelect: "none",
+        // Opacity and transparent PNGs must composite over the theme, not chat text.
+        backgroundColor: "var(--dsw-alias-bg-base, Canvas)"
+      });
+      surface.prepend(clip);
+      const attribute = surface.getAttribute("data-dsh-composer-surface");
+      surface.setAttribute("data-dsh-composer-surface", owner);
+      const image = { clip, scenes: /* @__PURE__ */ new Map(), saved, attribute };
+      images.set(surface, image);
+      return image;
+    }
+    function syncScene(source, image) {
+      image.scene.style.backgroundColor = source.layer.style.backgroundColor;
+      source.planes.forEach((plane, index) => {
+        const css = plane.style.cssText;
+        if (image.paint[index] === css) return;
+        image.paint[index] = css;
+        const copy = image.planes[index];
+        copy.style.cssText = css;
+        copy.style.position = "absolute";
+        copy.style.backgroundRepeat = "no-repeat";
+        copy.style.pointerEvents = "none";
+      });
+    }
+    function refresh() {
+      if (disposed) return;
+      const desired = /* @__PURE__ */ new Map();
+      for (const card of document2.querySelectorAll('[data-composer-seat][data-conversation-region="composer"] [data-composer-card]')) {
+        if (!(card instanceof window2.HTMLElement)) continue;
+        const sources = mounts.filter((mount) => mount.host.contains(card));
+        if (sources.length === 0) continue;
+        desired.set(card, sources);
+        for (const menu of card.querySelectorAll("[data-trigger-menu][data-menu-material]")) {
+          if (menu instanceof window2.HTMLElement) desired.set(menu, sources);
+        }
+      }
+      for (const surface of images.keys()) if (!desired.has(surface)) remove(surface);
+      const elements = /* @__PURE__ */ new Set();
+      for (const [surface, sources] of desired) {
+        if (images.has(surface) && !images.get(surface).clip.isConnected) remove(surface);
+        const image = images.get(surface) ?? add(surface);
+        const bounds = image.clip.getBoundingClientRect();
+        elements.add(surface);
+        for (const [mount, scene] of image.scenes) {
+          if (sources.includes(mount)) continue;
+          scene.scene.remove();
+          image.scenes.delete(mount);
+        }
+        for (const [order, mount] of sources.entries()) {
+          let scene = image.scenes.get(mount);
+          if (!scene) {
+            const layer = ownedDiv("data-dsh-composer-scene");
+            Object.assign(layer.style, { position: "absolute", overflow: "hidden", filter: "blur(4px)" });
+            const planes = [ownedDiv("data-dsh-composer-plane"), ownedDiv("data-dsh-composer-plane")];
+            layer.append(...planes);
+            image.clip.append(layer);
+            scene = { scene: layer, planes, paint: ["unset", "unset"] };
+            image.scenes.set(mount, scene);
+          }
+          const rect = mount.layer.getBoundingClientRect();
+          Object.assign(scene.scene.style, {
+            left: `${rect.left - bounds.left}px`,
+            top: `${rect.top - bounds.top}px`,
+            width: `${rect.width}px`,
+            height: `${rect.height}px`,
+            zIndex: String(order)
+          });
+          syncScene(mount, scene);
+          elements.add(mount.layer);
+        }
+      }
+      for (const element of observed) {
+        if (elements.has(element)) continue;
+        resize?.unobserve(element);
+        observed.delete(element);
+      }
+      for (const element of elements) {
+        if (observed.has(element)) continue;
+        resize?.observe(element);
+        observed.add(element);
+      }
+    }
+    function queue() {
+      if (queued || disposed) return;
+      queued = true;
+      void Promise.resolve().then(() => {
+        queued = false;
+        refresh();
+      });
+    }
+    window2.addEventListener("resize", queue);
+    document2.addEventListener("scroll", queue, true);
+    return {
+      update(nextMounts) {
+        mounts = nextMounts;
+        refresh();
+      },
+      sync(mount) {
+        for (const image of images.values()) {
+          const scene = image.scenes.get(mount);
+          if (scene) syncScene(mount, scene);
+        }
+      },
+      lostNode(node) {
+        return [...images.values()].some((image) => image.clip === node && !image.clip.isConnected);
+      },
+      dispose() {
+        disposed = true;
+        resize?.disconnect();
+        observed.clear();
+        window2.removeEventListener("resize", queue);
+        document2.removeEventListener("scroll", queue, true);
+        for (const surface of images.keys()) remove(surface);
+      }
+    };
+  }
+
   // src/renderer.ts
   var DEFAULT_SELECTORS = {
     fullscreen: '[data-dsh-background-region="fullscreen"], [data-slot="root"] > *',
@@ -510,8 +682,13 @@ ${issues.join("\n")}`);
     html[data-windows-titlebar] [data-dsh-background-caption-frame="${ownerId}"]::before {
       background-color: transparent !important;
     }
+    [data-dsh-composer-surface="${ownerId}"] button[class*="_add"][aria-haspopup="listbox"] {
+      background-color: transparent !important;
+      backdrop-filter: none !important;
+    }
   `;
     const titlebar = createTitlebarBackgrounds(document2, ownerId, styleElement);
+    const composer = createComposerBackgrounds(document2, ownerId);
     const regions = REGION_NAMES.map((name) => ({
       name,
       config: config[name],
@@ -575,6 +752,7 @@ ${issues.join("\n")}`);
       }
       mount.image = source;
       titlebar.sync(mount);
+      composer.sync(mount);
     }
     function ensureTimer(region) {
       const shouldRotate = enabled(region) && region.mounts.size > 0 && region.config.images.length > 1 && region.config.interval > 0;
@@ -679,6 +857,9 @@ ${issues.join("\n")}`);
     function reconcileTransparentSurfaces() {
       const desired = /* @__PURE__ */ new Map();
       const transparentBackground = { "background-color": "transparent" };
+      const glassBlocks = /* @__PURE__ */ new Set();
+      const clearBlockBackground = { ...transparentBackground, "background-image": "none" };
+      const conversationContent = '[data-slot="conversation.chat.flow"], [data-chat-node-key], [data-slot="conversation.chat.node"]';
       function addSidebarControls(host) {
         for (const button of host.querySelectorAll('button[class*="_newSession"]')) {
           if (button instanceof window2.HTMLElement && !owned(button)) desired.set(button, transparentBackground);
@@ -755,20 +936,57 @@ ${issues.join("\n")}`);
       }
       for (const region of [fullscreen, chat, ...rightRegions.values()]) {
         for (const mount of region.mounts.values()) {
+          for (const seat of mount.host.querySelectorAll('[data-composer-seat][data-conversation-region="composer"]')) {
+            if (!(seat instanceof window2.HTMLElement) || owned(seat)) continue;
+            desired.set(seat, clearBlockBackground);
+          }
+          for (const shell of mount.host.querySelectorAll("[data-chat-node-key]")) {
+            if (shell instanceof window2.HTMLElement && !owned(shell)) desired.set(shell, transparentBackground);
+          }
           for (const surface of mount.host.querySelectorAll([
             '[class*="_userStack"] > [class*="_bubble"]',
-            "[data-chat-node-key]",
             "[data-context-injection-body]",
             "[data-system-prompt-body]",
             '[data-variant="others"] pre[class*="_body"]',
             '[data-message-attachments] > [class*="_fileCard"]',
-            // Markdown inline code and assistant delivery cards own separate fills.
             '[class*="_markdown"] :not(pre) > code',
-            "[data-presented-file]"
+            '[class*="_markdown"] pre',
+            '[class*="_markdown"] blockquote',
+            '[class*="_markdown"] [class*="_tableScroll"]',
+            "[data-presented-file]",
+            ".md-code-block",
+            "[data-read]",
+            "[data-diff]",
+            "[data-terminal]",
+            "[data-search]",
+            "[data-web]"
           ].join(", "))) {
-            if (surface instanceof window2.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
+            if (surface instanceof window2.HTMLElement && !owned(surface) && surface.closest(conversationContent)) glassBlocks.add(surface);
+          }
+          for (const surface of mount.host.querySelectorAll([
+            ".md-code-block > :has(> [data-code-block-banner])",
+            ".md-code-block [data-code-block-banner]",
+            ".md-code-block [data-code-block-content]",
+            ".md-code-block pre",
+            ".md-code-block pre > code",
+            "[data-read] > [data-code-block-banner]",
+            "[data-diff] > [data-code-block-banner]",
+            '[data-terminal] button[class*="_copyButton"]',
+            '[data-search] > [class*="_header"]',
+            '[class*="_markdown"] [class*="_tableScroll"] :is(table, thead, tbody, tr, th, td)'
+          ].join(", "))) {
+            if (surface instanceof window2.HTMLElement && !owned(surface) && surface.closest(conversationContent)) desired.set(surface, clearBlockBackground);
           }
         }
+      }
+      for (const block of glassBlocks) {
+        let parent = block.parentElement;
+        while (parent && !glassBlocks.has(parent)) parent = parent.parentElement;
+        desired.set(block, {
+          ...clearBlockBackground,
+          // Nested blocks already see the outer block's glass; never compound it.
+          "backdrop-filter": parent ? "none" : "blur(6px)"
+        });
       }
       if ([...regions, ...rightRegions.values()].some((region) => enabled(region) && region.mounts.size > 0)) {
         let settingsOpen = false;
@@ -816,9 +1034,14 @@ ${issues.join("\n")}`);
           transparentSurfaces.set(surface, saved);
         }
         for (const [property, value] of Object.entries(styles)) {
-          if (saved.some((style) => style.property === property)) continue;
-          saved.push(saveStyle(surface, property));
+          let original = saved.find((style) => style.property === property);
+          if (!original) {
+            original = saveStyle(surface, property);
+            saved.push(original);
+          }
+          if (original.appliedValue === value) continue;
           surface.style.setProperty(property, value, "important");
+          original.appliedValue = value;
         }
       }
     }
@@ -843,6 +1066,7 @@ ${issues.join("\n")}`);
       }
       titlebar.update([...fullscreen.mounts.keys()], captionSources);
       reconcileTransparentSurfaces();
+      composer.update([...regions, ...rightRegions.values()].flatMap((region) => [...region.mounts.values()]));
     }
     function queueReconcile() {
       if (pendingReconcile || disposed) return;
@@ -854,6 +1078,7 @@ ${issues.join("\n")}`);
     }
     function lostOwnedNode(node) {
       if (titlebar.lostNode(node)) return true;
+      if (composer.lostNode(node)) return true;
       if (node === styleElement && !styleElement.isConnected) return true;
       for (const region of [...regions, ...rightRegions.values()]) {
         for (const mount of region.mounts.values()) {
@@ -908,6 +1133,7 @@ ${issues.join("\n")}`);
         disposed = true;
         observer.disconnect();
         titlebar.dispose();
+        composer.dispose();
         for (const region of [...regions, ...rightRegions.values()]) {
           stopTimer(region);
           for (const mount of [...region.mounts.values()]) removeMount(region, mount);

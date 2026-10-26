@@ -7,6 +7,7 @@ import {
   type RightSidebarLayout,
 } from "./config.js";
 import { createTitlebarBackgrounds, type TitlebarSource } from "./titlebar.js";
+import { createComposerBackgrounds } from "./composer-background.js";
 
 export const DEFAULT_SELECTORS: Readonly<Record<RegionName, string>> = {
   fullscreen: '[data-dsh-background-region="fullscreen"], [data-slot="root"] > *',
@@ -23,6 +24,7 @@ interface SavedStyle {
   property: string;
   value: string;
   priority: string;
+  appliedValue?: string;
 }
 
 interface MountedHost {
@@ -107,8 +109,13 @@ export function mountBackgrounds(
     html[data-windows-titlebar] [data-dsh-background-caption-frame="${ownerId}"]::before {
       background-color: transparent !important;
     }
+    [data-dsh-composer-surface="${ownerId}"] button[class*="_add"][aria-haspopup="listbox"] {
+      background-color: transparent !important;
+      backdrop-filter: none !important;
+    }
   `;
   const titlebar = createTitlebarBackgrounds(document, ownerId, styleElement);
+  const composer = createComposerBackgrounds(document, ownerId);
   const regions = REGION_NAMES.map((name): RegionRuntime => ({
     name,
     config: config[name],
@@ -181,6 +188,7 @@ export function mountBackgrounds(
     }
     mount.image = source;
     titlebar.sync(mount);
+    composer.sync(mount);
   }
 
   function ensureTimer(region: RegionRuntime): void {
@@ -294,6 +302,9 @@ export function mountBackgrounds(
   function reconcileTransparentSurfaces(): void {
     const desired = new Map<HTMLElement, Record<string, string>>();
     const transparentBackground = { "background-color": "transparent" };
+    const glassBlocks = new Set<HTMLElement>();
+    const clearBlockBackground = { ...transparentBackground, "background-image": "none" };
+    const conversationContent = '[data-slot="conversation.chat.flow"], [data-chat-node-key], [data-slot="conversation.chat.node"]';
     function addSidebarControls(host: HTMLElement): void {
       // SidebarRoot has no data hook for New Session. Match its CSS-module
       // local name on the button, independent of locale and generated hash.
@@ -384,24 +395,67 @@ export function mountBackgrounds(
         }
       }
     }
-    // Clear message surfaces only where a background is actually mounted.
-    // Text, syntax colors, images, nested controls and sticky headers keep their styles.
+    // Glass belongs to visible message blocks, not the flow wrappers around them.
+    // A single backdrop blur leaves foreground text and syntax highlighting sharp.
     for (const region of [fullscreen, chat, ...rightRegions.values()]) {
       for (const mount of region.mounts.values()) {
+        // The input card has its own image-only scene; leave the surrounding
+        // layout image visible without a full-width footer gradient.
+        for (const seat of mount.host.querySelectorAll('[data-composer-seat][data-conversation-region="composer"]')) {
+          if (!(seat instanceof window!.HTMLElement) || owned(seat)) continue;
+          desired.set(seat, clearBlockBackground);
+        }
+        for (const shell of mount.host.querySelectorAll('[data-chat-node-key]')) {
+          if (shell instanceof window!.HTMLElement && !owned(shell)) desired.set(shell, transparentBackground);
+        }
         for (const surface of mount.host.querySelectorAll([
           '[class*="_userStack"] > [class*="_bubble"]',
-          '[data-chat-node-key]',
           '[data-context-injection-body]',
           '[data-system-prompt-body]',
           '[data-variant="others"] pre[class*="_body"]',
           '[data-message-attachments] > [class*="_fileCard"]',
-          // Markdown inline code and assistant delivery cards own separate fills.
           '[class*="_markdown"] :not(pre) > code',
+          '[class*="_markdown"] pre',
+          '[class*="_markdown"] blockquote',
+          '[class*="_markdown"] [class*="_tableScroll"]',
           '[data-presented-file]',
+          '.md-code-block',
+          '[data-read]',
+          '[data-diff]',
+          '[data-terminal]',
+          '[data-search]',
+          '[data-web]',
         ].join(', '))) {
-          if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
+          if (surface instanceof window!.HTMLElement && !owned(surface)
+            && surface.closest(conversationContent)) glassBlocks.add(surface);
+        }
+        // Code chrome and Shiki pre elements paint their own opaque fills.
+        // Keep syntax colors, diff highlights and control behavior unchanged.
+        for (const surface of mount.host.querySelectorAll([
+          '.md-code-block > :has(> [data-code-block-banner])',
+          '.md-code-block [data-code-block-banner]',
+          '.md-code-block [data-code-block-content]',
+          '.md-code-block pre',
+          '.md-code-block pre > code',
+          '[data-read] > [data-code-block-banner]',
+          '[data-diff] > [data-code-block-banner]',
+          '[data-terminal] button[class*="_copyButton"]',
+          '[data-search] > [class*="_header"]',
+          '[class*="_markdown"] [class*="_tableScroll"] :is(table, thead, tbody, tr, th, td)',
+        ].join(', '))) {
+          if (surface instanceof window!.HTMLElement && !owned(surface)
+            && surface.closest(conversationContent)) desired.set(surface, clearBlockBackground);
         }
       }
+    }
+    for (const block of glassBlocks) {
+      let parent = block.parentElement;
+      while (parent && !glassBlocks.has(parent)) parent = parent.parentElement;
+      desired.set(block, {
+        ...clearBlockBackground,
+        // Nested blocks already see the outer block's glass; never compound it.
+        "backdrop-filter": parent ? "none" : "blur(6px)",
+      });
     }
     if ([...regions, ...rightRegions.values()].some((region) => enabled(region) && region.mounts.size > 0)) {
       // Harness Settings portals beside the root, so it must be found document-wide.
@@ -456,9 +510,15 @@ export function mountBackgrounds(
         transparentSurfaces.set(surface, saved);
       }
       for (const [property, value] of Object.entries(styles)) {
-        if (saved.some((style) => style.property === property)) continue;
-        saved.push(saveStyle(surface, property));
+        let original = saved.find((style) => style.property === property);
+        if (!original) {
+          original = saveStyle(surface, property);
+          saved.push(original);
+        }
+        // Preserve the original once, but allow overrides to change after reparenting.
+        if (original.appliedValue === value) continue;
         surface.style.setProperty(property, value, "important");
+        original.appliedValue = value;
       }
     }
   }
@@ -484,6 +544,7 @@ export function mountBackgrounds(
     }
     titlebar.update([...fullscreen.mounts.keys()], captionSources);
     reconcileTransparentSurfaces();
+    composer.update([...regions, ...rightRegions.values()].flatMap(region => [...region.mounts.values()]));
   }
 
   function queueReconcile(): void {
@@ -497,6 +558,7 @@ export function mountBackgrounds(
 
   function lostOwnedNode(node: Node): boolean {
     if (titlebar.lostNode(node)) return true;
+    if (composer.lostNode(node)) return true;
     if (node === styleElement && !styleElement.isConnected) return true;
     for (const region of [...regions, ...rightRegions.values()]) {
       for (const mount of region.mounts.values()) {
@@ -553,6 +615,7 @@ export function mountBackgrounds(
       disposed = true;
       observer.disconnect();
       titlebar.dispose();
+      composer.dispose();
       for (const region of [...regions, ...rightRegions.values()]) {
         stopTimer(region);
         for (const mount of [...region.mounts.values()]) removeMount(region, mount);
