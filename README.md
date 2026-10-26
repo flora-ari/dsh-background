@@ -15,7 +15,7 @@
 可从 [GitHub Releases](https://github.com/flora-ari/dsh-background/releases) 下载 `.tgz` 安装包，也可以将下面的下载地址填入 Desktop 的插件安装页面，或通过 Web CLI 安装：
 
 ```sh
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.0/dsh-background-ari-0.2.0.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.1/dsh-background-ari-0.2.1.tgz
 ```
 
 ### Web
@@ -50,7 +50,7 @@ dsh plugin --profile desktop add github:flora-ari/dsh-background#main
 
 ```sh
 dsh plugin --profile web remove dsh-background
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.0/dsh-background-ari-0.2.0.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.1/dsh-background-ari-0.2.1.tgz
 ```
 
 开发过程中如已安装临时包 `flora-ari-dsh-background`，也要在对应 profile 移除它；Web 端可执行 `dsh plugin --profile web remove flora-ari-dsh-background`，然后安装上面的新版安装包。
@@ -228,7 +228,7 @@ JSON 是本插件设置页面使用的配置格式；背景设置保存在客户
 
 `v0.2.0` 修复部分子组件背景显示异常，让新会话按钮、右侧边栏标签、会话消息、文件卡片和行内代码透出所在区域的背景图片。
 
-`v0.2.1` 修复全局背景在会话界面中的显示问题，加入对话框和插件模块窗口的背景显示与模糊效果，避免历史聊天文字透出。
+`v0.2.1` 修复全局背景在会话界面中的显示问题，加入对话框和插件模块窗口的背景显示与模糊效果，避免历史聊天文字透出；更新插件图标，修复图标超出体积限制导致的元信息报错。
 
 Windows 原生窗口按钮背景色尚无实机像素验证。Harness 的插件 API 尚未稳定，之后的版本可能需要适配。
 
