@@ -755,7 +755,17 @@ ${issues.join("\n")}`);
       }
       for (const region of [fullscreen, chat, ...rightRegions.values()]) {
         for (const mount of region.mounts.values()) {
-          for (const surface of mount.host.querySelectorAll('[class*="_userStack"] > [class*="_bubble"], [data-chat-node-key], [data-context-injection-body], [data-system-prompt-body], [data-variant="others"] pre[class*="_body"], [data-message-attachments] > [class*="_fileCard"]')) {
+          for (const surface of mount.host.querySelectorAll([
+            '[class*="_userStack"] > [class*="_bubble"]',
+            "[data-chat-node-key]",
+            "[data-context-injection-body]",
+            "[data-system-prompt-body]",
+            '[data-variant="others"] pre[class*="_body"]',
+            '[data-message-attachments] > [class*="_fileCard"]',
+            // Markdown inline code and assistant delivery cards own separate fills.
+            '[class*="_markdown"] :not(pre) > code',
+            "[data-presented-file]"
+          ].join(", "))) {
             if (surface instanceof window2.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
           }
         }
