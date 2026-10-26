@@ -294,6 +294,13 @@ export function mountBackgrounds(
   function reconcileTransparentSurfaces(): void {
     const desired = new Map<HTMLElement, Record<string, string>>();
     const transparentBackground = { "background-color": "transparent" };
+    function addSidebarControls(host: HTMLElement): void {
+      // SidebarRoot has no data hook for New Session. Match its CSS-module
+      // local name on the button, independent of locale and generated hash.
+      for (const button of host.querySelectorAll('button[class*="_newSession"]')) {
+        if (button instanceof window!.HTMLElement && !owned(button)) desired.set(button, transparentBackground);
+      }
+    }
     function addWorkspaceSurfaces(host: HTMLElement): void {
       for (const surface of host.querySelectorAll('[data-slot="sidebar.workspaces"] > *')) {
         if (!(surface instanceof window!.HTMLElement) || owned(surface)) continue;
@@ -307,7 +314,7 @@ export function mountBackgrounds(
       for (const mount of fullscreen.mounts.values()) {
         desired.set(mount.host, transparentBackground);
         // These are the opaque structural surfaces in Harness Web and Desktop.
-        // Keep controls, menus, message cards, and other descendants untouched.
+        // Message surfaces are handled separately below; keep controls and menus intact.
         for (const surface of mount.host.querySelectorAll('[data-slot="sidebar"] > *, [data-slot="main.conversation"] > *')) {
           if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
         }
@@ -326,11 +333,17 @@ export function mountBackgrounds(
           }
         }
         addWorkspaceSurfaces(mount.host);
+        for (const host of mount.host.querySelectorAll('[data-slot="sidebar"] > *')) {
+          if (host instanceof window!.HTMLElement) addSidebarControls(host);
+        }
       }
     }
     const sidebar = regions.find((region) => region.name === "sidebar")!;
     if (enabled(sidebar)) {
-      for (const mount of sidebar.mounts.values()) addWorkspaceSurfaces(mount.host);
+      for (const mount of sidebar.mounts.values()) {
+        addWorkspaceSurfaces(mount.host);
+        addSidebarControls(mount.host);
+      }
     }
     const chat = regions.find((region) => region.name === "chat")!;
     for (const trajectory of document.querySelectorAll('[data-slot="conversation.view"] > [data-conversation-composer-overlay]:has([data-trajectory-scroll])')) {
@@ -360,8 +373,32 @@ export function mountBackgrounds(
       for (const mount of region.mounts.values()) {
         // The visible dock pane is itself the bg-base data-dockkit-content shell.
         if (mount.host.hasAttribute("data-dockkit-content")) desired.set(mount.host, transparentBackground);
+        // Dockkit paints selected/hovered chips once a pane has multiple tabs.
+        // Keep their labels, close buttons and selection semantics over the image.
+        for (const tab of mount.host.querySelectorAll('[data-dockkit-strip] [data-dockkit-tab]')) {
+          if (tab instanceof window!.HTMLElement && !owned(tab)) desired.set(tab, transparentBackground);
+        }
         // Registered tab roots may paint a whole-pane fill; leave their controls intact.
         for (const surface of mount.host.querySelectorAll('[data-slot="sidebar.right.pane.tab"] > *')) {
+          if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
+        }
+      }
+    }
+    // Clear message surfaces only where a background is actually mounted.
+    // Text, syntax colors, images, nested controls and sticky headers keep their styles.
+    for (const region of [fullscreen, chat, ...rightRegions.values()]) {
+      for (const mount of region.mounts.values()) {
+        for (const surface of mount.host.querySelectorAll([
+          '[class*="_userStack"] > [class*="_bubble"]',
+          '[data-chat-node-key]',
+          '[data-context-injection-body]',
+          '[data-system-prompt-body]',
+          '[data-variant="others"] pre[class*="_body"]',
+          '[data-message-attachments] > [class*="_fileCard"]',
+          // Markdown inline code and assistant delivery cards own separate fills.
+          '[class*="_markdown"] :not(pre) > code',
+          '[data-presented-file]',
+        ].join(', '))) {
           if (surface instanceof window!.HTMLElement && !owned(surface)) desired.set(surface, transparentBackground);
         }
       }
