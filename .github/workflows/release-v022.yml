@@ -1,0 +1,36 @@
+name: Publish v0.2.2
+
+on:
+  push:
+    branches: [v0.2.2]
+    paths: [.github/workflows/release-v022.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack the compiled plugin
+        run: npm pack --ignore-scripts
+      - name: Publish the release and installation package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          修复第三方插件页面与设置面板的背景显示问题。
+
+          - 任务看板等插件页面继承所属布局的背景图片，解决不透明底色遮挡背景的问题。
+          - 独立栏目与面板使用 6px（约 30% 强度）背景模糊，嵌套面板不叠加模糊。
+          - 修复设置面板打开后，底层历史会话文字及最近使用时间透出的问题；设置面板单独绘制布局背景并应用 6px 模糊。
+          - 保持文字、按钮、输入框及状态颜色清晰，关闭背景或设置面板后恢复原有样式。
+
+          安装包：`dsh-background-ari-0.2.2.tgz`，包含已编译客户端，可直接安装。
+          NOTES
+          sha256sum dsh-background-ari-0.2.2.tgz
+          gh release create v0.2.2 dsh-background-ari-0.2.2.tgz \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "dsh-background-ari v0.2.2" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --latest

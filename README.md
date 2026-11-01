@@ -15,7 +15,7 @@
 可从 [GitHub Releases](https://github.com/flora-ari/dsh-background/releases) 下载 `.tgz` 安装包，也可以将下面的下载地址填入 Desktop 的插件安装页面，或通过 Web CLI 安装：
 
 ```sh
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.1/dsh-background-ari-0.2.1.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.2/dsh-background-ari-0.2.2.tgz
 ```
 
 ### Web
@@ -50,7 +50,7 @@ dsh plugin --profile desktop add github:flora-ari/dsh-background#main
 
 ```sh
 dsh plugin --profile web remove dsh-background
-dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.1/dsh-background-ari-0.2.1.tgz
+dsh plugin --profile web add https://github.com/flora-ari/dsh-background/releases/download/v0.2.2/dsh-background-ari-0.2.2.tgz
 ```
 
 开发过程中如已安装临时包 `flora-ari-dsh-background`，也要在对应 profile 移除它；Web 端可执行 `dsh plugin --profile web remove flora-ari-dsh-background`，然后安装上面的新版安装包。
@@ -70,10 +70,10 @@ npm run build
 npm pack
 ```
 
-完成上述构建后，`npm pack` 输出 `dsh-background-ari-0.2.1.tgz`。也可以用 `npm run package` 一次完成类型检查、构建与打包。在 Plugins 页面安装这个文件，或用 Web CLI 传入它的绝对路径（将下方占位路径替换为安装包的绝对路径）：
+完成上述构建后，`npm pack` 输出 `dsh-background-ari-0.2.2.tgz`。也可以用 `npm run package` 一次完成类型检查、构建与打包。在 Plugins 页面安装这个文件，或用 Web CLI 传入它的绝对路径（将下方占位路径替换为安装包的绝对路径）：
 
 ```sh
-dsh plugin --profile web add "absolute\path\to\dsh-background-ari-0.2.1.tgz"
+dsh plugin --profile web add "absolute\path\to\dsh-background-ari-0.2.2.tgz"
 ```
 
 ## 设置背景
