@@ -473,17 +473,17 @@ ${issues.join("\n")}`);
         if (value === "") surface.style.removeProperty(property);
         else surface.style.setProperty(property, value, priority);
       }
-      if (image.attribute === null) surface.removeAttribute("data-dsh-composer-surface");
-      else surface.setAttribute("data-dsh-composer-surface", image.attribute);
+      const marker = `data-dsh-${image.kind}-surface`;
+      if (image.attribute === null) surface.removeAttribute(marker);
+      else surface.setAttribute(marker, image.attribute);
       images.delete(surface);
     }
-    function add(surface) {
-      const styles = {
-        "background-color": "transparent",
-        "background-image": "none",
-        "backdrop-filter": "none",
-        isolation: "isolate"
-      };
+    function add(surface, kind) {
+      const styles = { "backdrop-filter": "none", isolation: "isolate" };
+      if (kind === "composer") {
+        styles["background-color"] = "transparent";
+        styles["background-image"] = "none";
+      }
       if (surface.hasAttribute("data-trigger-menu")) {
         styles["--dsw-menu-surface-fill"] = "transparent";
         styles["--dsw-menu-backdrop-filter"] = "none";
@@ -496,7 +496,7 @@ ${issues.join("\n")}`);
         priority: surface.style.getPropertyPriority(property)
       }));
       for (const [property, value] of Object.entries(styles)) surface.style.setProperty(property, value, "important");
-      const clip = ownedDiv("data-dsh-composer-background");
+      const clip = ownedDiv(`data-dsh-${kind}-background`);
       clip.setAttribute("aria-hidden", "true");
       Object.assign(clip.style, {
         position: "absolute",
@@ -510,9 +510,10 @@ ${issues.join("\n")}`);
         backgroundColor: "var(--dsw-alias-bg-base, Canvas)"
       });
       surface.prepend(clip);
-      const attribute = surface.getAttribute("data-dsh-composer-surface");
-      surface.setAttribute("data-dsh-composer-surface", owner);
-      const image = { clip, scenes: /* @__PURE__ */ new Map(), saved, attribute };
+      const marker = `data-dsh-${kind}-surface`;
+      const attribute = surface.getAttribute(marker);
+      surface.setAttribute(marker, owner);
+      const image = { kind, clip, scenes: /* @__PURE__ */ new Map(), saved, attribute };
       images.set(surface, image);
       return image;
     }
@@ -536,16 +537,23 @@ ${issues.join("\n")}`);
         if (!(card instanceof window2.HTMLElement)) continue;
         const sources = mounts.filter((mount) => mount.host.contains(card));
         if (sources.length === 0) continue;
-        desired.set(card, sources);
+        desired.set(card, { sources, kind: "composer" });
         for (const menu of card.querySelectorAll("[data-trigger-menu][data-menu-material]")) {
-          if (menu instanceof window2.HTMLElement) desired.set(menu, sources);
+          if (menu instanceof window2.HTMLElement) desired.set(menu, { sources, kind: "composer" });
+        }
+      }
+      if (mounts.length > 0) {
+        for (const panel of document2.querySelectorAll('[data-shortcut-modal="settings"]')) {
+          if (panel instanceof window2.HTMLElement) {
+            desired.set(panel, { sources: mounts, kind: "settings" });
+          }
         }
       }
       for (const surface of images.keys()) if (!desired.has(surface)) remove(surface);
       const elements = /* @__PURE__ */ new Set();
-      for (const [surface, sources] of desired) {
+      for (const [surface, { sources, kind }] of desired) {
         if (images.has(surface) && !images.get(surface).clip.isConnected) remove(surface);
-        const image = images.get(surface) ?? add(surface);
+        const image = images.get(surface) ?? add(surface, kind);
         const bounds = image.clip.getBoundingClientRect();
         elements.add(surface);
         for (const [mount, scene] of image.scenes) {
@@ -556,9 +564,9 @@ ${issues.join("\n")}`);
         for (const [order, mount] of sources.entries()) {
           let scene = image.scenes.get(mount);
           if (!scene) {
-            const layer = ownedDiv("data-dsh-composer-scene");
-            Object.assign(layer.style, { position: "absolute", overflow: "hidden", filter: "blur(4px)" });
-            const planes = [ownedDiv("data-dsh-composer-plane"), ownedDiv("data-dsh-composer-plane")];
+            const layer = ownedDiv(`data-dsh-${kind}-scene`);
+            Object.assign(layer.style, { position: "absolute", overflow: "hidden", filter: kind === "settings" ? "blur(6px)" : "blur(4px)" });
+            const planes = [ownedDiv(`data-dsh-${kind}-plane`), ownedDiv(`data-dsh-${kind}-plane`)];
             layer.append(...planes);
             image.clip.append(layer);
             scene = { scene: layer, planes, paint: ["unset", "unset"] };
