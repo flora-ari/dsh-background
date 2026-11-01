@@ -8,6 +8,7 @@ import {
 } from "./config.js";
 import { createTitlebarBackgrounds, type TitlebarSource } from "./titlebar.js";
 import { createComposerBackgrounds } from "./composer-background.js";
+import { pluginSurfaceStyles } from "./plugin-surfaces.js";
 
 export const DEFAULT_SELECTORS: Readonly<Record<RegionName, string>> = {
   fullscreen: '[data-dsh-background-region="fullscreen"], [data-slot="root"] > *',
@@ -489,6 +490,11 @@ export function mountBackgrounds(
           });
         }
       }
+    }
+    const pluginHosts = [...regions, ...rightRegions.values()]
+      .flatMap(region => [...region.mounts.keys()]);
+    for (const [surface, styles] of pluginSurfaceStyles(document, pluginHosts, owned)) {
+      desired.set(surface, { ...desired.get(surface), ...styles });
     }
     for (const [surface, saved] of transparentSurfaces) {
       const styles = desired.get(surface);
